@@ -38,7 +38,7 @@ const NetworkStatus = ({ isConnected }) => {
 
   const statusText = isConnected
     ? isCorrectNetwork
-      ? "Connected to Testnet"
+      ? "Connected"
       : "Wrong Network"
     : "Not Connected";
 

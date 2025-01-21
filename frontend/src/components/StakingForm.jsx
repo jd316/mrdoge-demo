@@ -87,7 +87,7 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
       // Check network first
       const network = await signer.provider.getNetwork();
       if (network.chainId !== REQUIRED_CHAIN_ID) {
-        throw new Error(`Please switch to Dogechain Testnet (Chain ID: ${REQUIRED_CHAIN_ID})`);
+        throw new Error(`Please switch to Testnet (Chain ID: ${REQUIRED_CHAIN_ID})`);
       }
       
       // Get contract instance
@@ -112,11 +112,11 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
       }
 
       // Stake DOGE
-      logger.info('Staking DOGE...');
+      logger.info('Staking...');
       
       // Show staking pending toast
       const stakingToastId = toast({
-        title: 'Staking DOGE',
+        title: 'Staking',
         description: (
           <VStack align="start" spacing={2}>
             <HStack>
@@ -192,7 +192,7 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
             <VStack align="start" spacing={2}>
               <HStack>
                 <Icon as={FiCheckCircle} color="#FF6B00" />
-                <Text>{amount} DOGE staked successfully!</Text>
+                <Text>{amount} WDOGE staked successfully!</Text>
               </HStack>
               <Link
                 href={`https://explorer-testnet.dogechain.dog/tx/${stakeTx.hash}`}
@@ -231,7 +231,7 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
         });
         
         // Handle specific error types
-        let errorMessage = 'Failed to stake DOGE';
+        let errorMessage = 'Failed to stake';
         
         if (error.code === 'ACTION_REJECTED') {
           errorMessage = 'Transaction was rejected by user';
@@ -287,7 +287,7 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
 
   return (
     <VStack spacing={6} align="stretch">
-      <Text fontSize="2xl" fontWeight="bold" color="white">Stake DOGE</Text>
+      <Text fontSize="2xl" fontWeight="bold" color="white">Stake</Text>
       
       <Card bg="whiteAlpha.100" border="1px" borderColor="whiteAlpha.200">
         <CardBody>
@@ -295,7 +295,7 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
             <Box>
               <Text mb={2} color="gray.400">Total Value Locked</Text>
               <Text fontSize="xl" fontWeight="bold" color="white">
-                {parseFloat(totalValueLocked).toFixed(2)} / {parseFloat(maxCap).toLocaleString()} DOGE
+                {parseFloat(totalValueLocked).toFixed(2)} / {parseFloat(maxCap).toLocaleString()} WDOGE
               </Text>
               <Progress 
                 value={(parseFloat(totalValueLocked) / parseFloat(maxCap)) * 100} 
@@ -308,18 +308,18 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
             </Box>
 
             <Box>
-              <Text mb={2} color="gray.400">Your DOGE Balance</Text>
+              <Text mb={2} color="gray.400">Your WDOGE Balance</Text>
               <Text fontSize="xl" fontWeight="bold" color="white">
-                {parseFloat(balance).toFixed(4)} DOGE
+                {parseFloat(balance).toFixed(4)} WDOGE
               </Text>
             </Box>
 
             <Box>
-              <Text mb={2} color="gray.400">Amount to Stake (min. {minStakeAmount} DOGE)</Text>
+              <Text mb={2} color="gray.400">Amount to Stake (min. {minStakeAmount} WDOGE)</Text>
               <Input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder={`Enter amount (min. ${minStakeAmount} DOGE)`}
+                placeholder={`Enter amount (min. ${minStakeAmount} WDOGE)`}
                 type="number"
                 min={minStakeAmount}
                 step="0.1"
@@ -338,13 +338,13 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
                 <Box>
                   <Text color="gray.400" fontSize="sm">Daily</Text>
                   <Text color="#FF6B00" fontSize="lg" fontWeight="bold">
-                    {dailyReward} DOGE
+                    {dailyReward} WDOGE
                   </Text>
                 </Box>
                 <Box>
                   <Text color="gray.400" fontSize="sm">Annual ({apy}% APY)</Text>
                   <Text color="#FF6B00" fontSize="lg" fontWeight="bold">
-                    {annualReward} DOGE
+                    {annualReward} WDOGE
                   </Text>
                 </Box>
               </HStack>
@@ -360,12 +360,12 @@ const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, tot
               _active={{ bg: "#CC5500" }}
               isDisabled={!amount || parseFloat(amount) < parseFloat(minStakeAmount) || hasActiveStake}
             >
-              Stake DOGE
+              Stake
             </Button>
 
             {amount && parseFloat(amount) < parseFloat(minStakeAmount) && (
               <Text color="#FF6B00" fontSize="sm">
-                Minimum stake amount is {minStakeAmount} DOGE
+                Minimum stake amount is {minStakeAmount} WDOGE
               </Text>
             )}
 

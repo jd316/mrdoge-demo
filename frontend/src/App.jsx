@@ -85,7 +85,7 @@ function App() {
 
       toast({
         title: 'Success',
-        description: 'Dogechain Testnet added to MetaMask',
+        description: 'Network added to MetaMask',
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -125,7 +125,7 @@ function App() {
       if (parseInt(chainId, 16) !== REQUIRED_CHAIN_ID) {
         toast({
           title: 'Wrong Network',
-          description: 'Please switch to Dogechain Testnet',
+          description: 'Please switch the network',
           status: 'warning',
           duration: null,
           isClosable: true,
@@ -140,7 +140,7 @@ function App() {
           
           toast({
             title: 'Success',
-            description: 'Successfully connected to Dogechain Testnet',
+            description: 'Successfully connected to Network',
             status: 'success',
             duration: 5000,
             isClosable: true,
@@ -151,7 +151,7 @@ function App() {
             try {
               toast({
                 title: 'Adding Network',
-                description: 'Please approve adding Dogechain Testnet to MetaMask',
+                description: 'Please approve adding Network to MetaMask',
                 status: 'info',
                 duration: null,
                 isClosable: true,
@@ -164,7 +164,7 @@ function App() {
 
               toast({
                 title: 'Success',
-                description: 'Dogechain Testnet added to MetaMask',
+                description: 'Network added to MetaMask',
                 status: 'success',
                 duration: 5000,
                 isClosable: true,
@@ -252,7 +252,7 @@ function App() {
                       >
                         DogeStaking
                       </Text>
-                      <Text fontSize="xs" color="gray.400" mt={1}>v2.1 Beta</Text>
+                      <Text fontSize="xs" color="gray.400" mt={1}>v3.5</Text>
                     </HStack>
                   </Box>
                 </HStack>

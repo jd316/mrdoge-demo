@@ -1,6 +1,7 @@
 {
-  "network": "dogechainTestnet",
-  "wdogeToken": "0xED06BD809785C1c62069D5dF05743B2ac74AA791",
-  "stakingContract": "0x134e4d590D977a84871b6e651A9AFe919a2ece29",
-  "timestamp": "2025-01-21T19:07:54.564Z"
+  "network": "dogechainMainnet",
+  "chainId": 2000,
+  "wdogeToken": "0x543f5319cbe021474EDc09889a9515f893E98B5e",
+  "stakingContract": "0x84F17668Dcd628e358C7e0393d624459A6Bc5dAe",
+  "timestamp": "2025-01-21T20:15:00.000Z"
 }

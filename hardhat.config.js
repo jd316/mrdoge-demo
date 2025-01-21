@@ -7,16 +7,14 @@ const PRIVATE_KEY = process.env.PRIVATE_KEY;
 module.exports = {
   solidity: "0.8.20",
   networks: {
-    hardhat: {
-      accounts: {
-        accountsBalance: "10000000000000000000000000" // 10,000,000 ETH in wei
-      }
+    localhost: {
+      url: "http://127.0.0.1:8545"
     },
-    dogechainTestnet: {
-      url: "https://rpc-testnet.dogechain.dog",
-      accounts: [PRIVATE_KEY],
-      chainId: 568,
-      timeout: 60000 // 1 minute timeout
+    dogechainMainnet: {
+      url: "https://rpc.dogechain.dog",
+      accounts: [process.env.PRIVATE_KEY],
+      chainId: 2000,
+      timeout: 60000
     }
   },
   paths: {
