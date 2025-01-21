@@ -98,7 +98,7 @@ const NetworkGuide = () => {
         </Text>
         
         <Text color="gray.300" fontSize="lg" textAlign="center">
-          Earn rewards by staking your DOGE!
+          Earn rewards by staking!
         </Text>
 
         <Divider borderColor="#2A2F34" />
