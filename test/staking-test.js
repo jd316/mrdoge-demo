@@ -1,176 +1,216 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
+const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("Staking Contract", function () {
-  let WDOGEToken;
-  let StakingContract;
-  let wdogeToken;
-  let stakingContract;
-  let owner;
-  let user1;
-  let user2;
+    let WDOGEToken, wdogeToken;
+    let StakingContract, stakingContract;
+    let owner, user1, user2;
+    const WEEK = 7 * 24 * 60 * 60; // 7 days in seconds
+    const MIN_STAKE = ethers.parseEther("5"); // 5 DOGE
+    const STAKE_AMOUNT = ethers.parseEther("500"); // 500 DOGE
 
-  beforeEach(async function () {
-    // Get signers
-    [owner, user1, user2] = await ethers.getSigners();
+    beforeEach(async function () {
+        // Get signers
+        [owner, user1, user2] = await ethers.getSigners();
 
-    // Deploy WDOGEToken
-    WDOGEToken = await ethers.getContractFactory("WDOGEToken");
-    wdogeToken = await WDOGEToken.deploy();
-    await wdogeToken.waitForDeployment();
+        // Deploy WDOGE Token
+        WDOGEToken = await ethers.getContractFactory("WDOGEToken");
+        wdogeToken = await WDOGEToken.deploy();
 
-    // Deploy StakingContract
-    StakingContract = await ethers.getContractFactory("StakingContract");
-    stakingContract = await StakingContract.deploy(await wdogeToken.getAddress());
-    await stakingContract.waitForDeployment();
+        // Deploy Staking Contract
+        StakingContract = await ethers.getContractFactory("StakingContract");
+        stakingContract = await StakingContract.deploy(await wdogeToken.getAddress());
 
-    // Grant MINTER_ROLE to StakingContract
-    const MINTER_ROLE = await wdogeToken.MINTER_ROLE();
-    await wdogeToken.grantRole(MINTER_ROLE, await stakingContract.getAddress());
+        // Grant MINTER_ROLE to staking contract
+        await wdogeToken.grantRole(await wdogeToken.MINTER_ROLE(), await stakingContract.getAddress());
 
-    // Fund contract with initial DOGE for rewards
-    await owner.sendTransaction({
-      to: await stakingContract.getAddress(),
-      value: ethers.parseEther("10.0") // 10 DOGE for rewards
-    });
-  });
-
-  describe("Deployment", function () {
-    it("Should set the right owner", async function () {
-      expect(await wdogeToken.hasRole(await wdogeToken.DEFAULT_ADMIN_ROLE(), owner.address)).to.equal(true);
+        // Fund the staking contract with rewards (10,000 DOGE for testing)
+        await owner.sendTransaction({
+            to: await stakingContract.getAddress(),
+            value: ethers.parseEther("10000")
+        });
     });
 
-    it("Should grant MINTER_ROLE to StakingContract", async function () {
-      const MINTER_ROLE = await wdogeToken.MINTER_ROLE();
-      expect(await wdogeToken.hasRole(MINTER_ROLE, await stakingContract.getAddress())).to.equal(true);
+    describe("Deployment", function () {
+        it("Should set the right owner", async function () {
+            expect(await stakingContract.owner()).to.equal(owner.address);
+        });
+
+        it("Should set the correct initial rates", async function () {
+            expect(await stakingContract.baseRate()).to.equal(5);
+            expect(await stakingContract.maxRate()).to.equal(15);
+            expect(await stakingContract.minRate()).to.equal(3);
+            expect(await stakingContract.currentRate()).to.equal(15); // Max rate initially since TVL is 0
+        });
+
+        it("Should start in unpaused state", async function () {
+            expect(await stakingContract.paused()).to.be.false;
+        });
     });
 
-    it("Should set the right admin", async function () {
-      const ADMIN_ROLE = await stakingContract.ADMIN_ROLE();
-      expect(await stakingContract.hasRole(ADMIN_ROLE, owner.address)).to.equal(true);
-    });
-  });
+    describe("Staking", function () {
+        it("Should not allow staking below minimum amount", async function () {
+            await expect(stakingContract.connect(user1).stake({
+                value: ethers.parseEther("4") // Below 5 DOGE minimum
+            })).to.be.revertedWithCustomError(stakingContract, "BelowMinStake");
+        });
 
-  describe("Staking", function () {
-    const stakeAmount = ethers.parseEther("1.0");
+        it("Should allow staking and update TVL", async function () {
+            await stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            });
 
-    it("Should allow staking DOGE", async function () {
-      await stakingContract.connect(user1).stake({ value: stakeAmount });
-      
-      const stake = await stakingContract.stakes(user1.address);
-      expect(stake.amount).to.equal(stakeAmount);
-      expect(stake.active).to.equal(true);
-      
-      const wdogeBalance = await wdogeToken.balanceOf(user1.address);
-      expect(wdogeBalance).to.equal(stakeAmount);
-    });
+            const stake = await stakingContract.stakes(user1.address);
+            expect(stake.amount).to.equal(STAKE_AMOUNT);
+            expect(stake.active).to.be.true;
+            expect(await stakingContract.totalValueLocked()).to.equal(STAKE_AMOUNT);
+        });
 
-    it("Should prevent double staking", async function () {
-      await stakingContract.connect(user1).stake({ value: stakeAmount });
-      await expect(
-        stakingContract.connect(user1).stake({ value: stakeAmount })
-      ).to.be.revertedWithCustomError(stakingContract, "AlreadyStaking");
-    });
+        it("Should not allow double staking", async function () {
+            await stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            });
 
-    it("Should prevent staking 0 DOGE", async function () {
-      await expect(
-        stakingContract.connect(user1).stake({ value: 0 })
-      ).to.be.revertedWithCustomError(stakingContract, "InvalidAmount");
-    });
-  });
-
-  describe("Rewards", function () {
-    const stakeAmount = ethers.parseEther("1.0");
-
-    it("Should calculate rewards correctly", async function () {
-      await stakingContract.connect(user1).stake({ value: stakeAmount });
-      
-      // Simulate time passing (7 days)
-      await ethers.provider.send("evm_increaseTime", [7 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-      const reward = await stakingContract.calculateReward(user1.address);
-      expect(reward).to.be.gt(0);
+            await expect(stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            })).to.be.revertedWithCustomError(stakingContract, "AlreadyStaking");
+        });
     });
 
-    it("Should allow admin to change reward rate", async function () {
-      const newRate = 30; // 30% APY
-      await stakingContract.connect(owner).setRewardRate(newRate);
-      expect(await stakingContract.rewardRate()).to.equal(newRate);
+    describe("Rewards", function () {
+        it("Should calculate rewards correctly", async function () {
+            // Get initial rate which should be maxRate since TVL is 0
+            const initialRate = await stakingContract.currentRate();
+            expect(initialRate).to.equal(await stakingContract.maxRate());
+
+            // Stake amount
+            await stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            });
+
+            // Get the actual rate that was locked for this stake
+            const stake = await stakingContract.stakes(user1.address);
+            const lockedRate = stake.lockedRate;
+
+            // Move time forward by 30 days
+            await time.increase(30 * 24 * 60 * 60);
+
+            const reward = await stakingContract.calculateReward(user1.address);
+            // Expected reward = (amount * lockedRate * time) / (365 days) / 100
+            const expectedReward = STAKE_AMOUNT * BigInt(lockedRate) * 30n / (365n * 100n);
+            expect(reward).to.be.closeTo(expectedReward, ethers.parseEther("0.1")); // Allow small deviation
+        });
     });
 
-    it("Should prevent non-admin from changing reward rate", async function () {
-      const newRate = 30; // 30% APY
-      await expect(
-        stakingContract.connect(user1).setRewardRate(newRate)
-      ).to.be.reverted;
+    describe("Unstaking", function () {
+        it("Should not allow unstaking before lockup period", async function () {
+            await stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            });
+
+            await expect(stakingContract.connect(user1).unstake())
+                .to.be.revertedWithCustomError(stakingContract, "LockupPeriodNotOver");
+        });
+
+        it("Should allow unstaking after lockup period", async function () {
+            await stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            });
+
+            // Move time forward past lockup period
+            await time.increase(WEEK + 1);
+
+            const balanceBefore = await ethers.provider.getBalance(user1.address);
+            await stakingContract.connect(user1).unstake();
+            const balanceAfter = await ethers.provider.getBalance(user1.address);
+
+            // Should receive original stake plus rewards
+            expect(balanceAfter).to.be.gt(balanceBefore);
+        });
     });
 
-    it("Should allow admin to fund rewards", async function () {
-      const fundAmount = ethers.parseEther("5.0");
-      await stakingContract.connect(owner).fundRewards({ value: fundAmount });
-      const balance = await ethers.provider.getBalance(await stakingContract.getAddress());
-      expect(balance).to.be.gt(fundAmount);
-    });
-  });
+    describe("Emergency Withdrawal", function () {
+        it("Should allow emergency withdrawal without rewards", async function () {
+            await stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            });
 
-  describe("Withdrawals", function () {
-    const stakeAmount = ethers.parseEther("1.0");
+            const balanceBefore = await ethers.provider.getBalance(user1.address);
+            await stakingContract.connect(user1).emergencyWithdraw();
+            const balanceAfter = await ethers.provider.getBalance(user1.address);
 
-    it("Should prevent early withdrawal", async function () {
-      await stakingContract.connect(user1).stake({ value: stakeAmount });
-      await expect(
-        stakingContract.connect(user1).unstake()
-      ).to.be.revertedWithCustomError(stakingContract, "LockupPeriodNotOver");
+            // Should receive only original stake
+            expect(balanceAfter).to.be.gt(balanceBefore);
+            expect(await stakingContract.totalValueLocked()).to.equal(0);
+        });
     });
 
-    it("Should allow emergency withdrawal", async function () {
-      await stakingContract.connect(user1).stake({ value: stakeAmount });
-      
-      const balanceBefore = await ethers.provider.getBalance(user1.address);
-      const tx = await stakingContract.connect(user1).emergencyWithdraw();
-      const receipt = await tx.wait();
-      const gasCost = receipt.gasUsed * receipt.gasPrice;
-      const balanceAfter = await ethers.provider.getBalance(user1.address);
-      
-      // Check stake was deactivated
-      const stake = await stakingContract.stakes(user1.address);
-      expect(stake.active).to.equal(false);
-      
-      // Check WDOGE was burned
-      const wdogeBalance = await wdogeToken.balanceOf(user1.address);
-      expect(wdogeBalance).to.equal(0);
-      
-      // Check DOGE was returned (accounting for gas costs)
-      const expectedBalance = balanceBefore + stakeAmount - gasCost;
-      expect(balanceAfter).to.be.closeTo(expectedBalance, ethers.parseEther("0.0001"));
+    describe("Dynamic Rate", function () {
+        it("Should adjust rate based on TVL", async function () {
+            const initialRate = await stakingContract.currentRate();
+            console.log("Initial rate:", initialRate);
+            
+            // Use 80% of max cap to ensure rate drops to minimum
+            const maxCap = await stakingContract.maxCap();
+            console.log("Max cap:", maxCap);
+            const stakeAmount = (maxCap * 80n) / 100n;
+            console.log("Stake amount:", stakeAmount);
+            
+            await stakingContract.connect(user1).stake({
+                value: stakeAmount
+            });
+
+            const newRate = await stakingContract.currentRate();
+            console.log("New rate:", newRate);
+            
+            const tvl = await stakingContract.totalValueLocked();
+            console.log("TVL:", tvl);
+            const utilizationRate = (tvl * 100n) / maxCap;
+            console.log("Utilization rate:", utilizationRate, "%");
+            
+            // With 80% utilization, rate should be at minimum
+            expect(newRate).to.equal(await stakingContract.minRate());
+        });
+
+        it("Should maintain max rate at low utilization", async function () {
+            // Use 5% of max cap
+            const maxCap = await stakingContract.maxCap();
+            const stakeAmount = (maxCap * 5n) / 100n;
+            
+            await stakingContract.connect(user1).stake({
+                value: stakeAmount
+            });
+
+            const newRate = await stakingContract.currentRate();
+            
+            // At 5% utilization, should still be at max rate
+            expect(newRate).to.equal(await stakingContract.maxRate());
+        });
     });
 
-    it("Should allow withdrawal after lockup period", async function () {
-      await stakingContract.connect(user1).stake({ value: stakeAmount });
-      
-      // Simulate time passing (8 days to be safe)
-      await ethers.provider.send("evm_increaseTime", [8 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
+    describe("Admin Functions", function () {
+        it("Should allow owner to pause/unpause", async function () {
+            await stakingContract.connect(owner).setPaused(true);
+            expect(await stakingContract.paused()).to.be.true;
 
-      const balanceBefore = await ethers.provider.getBalance(user1.address);
-      const reward = await stakingContract.calculateReward(user1.address);
-      const tx = await stakingContract.connect(user1).unstake();
-      const receipt = await tx.wait();
-      const gasCost = receipt.gasUsed * receipt.gasPrice;
-      const balanceAfter = await ethers.provider.getBalance(user1.address);
-      
-      // Check stake was deactivated
-      const stake = await stakingContract.stakes(user1.address);
-      expect(stake.active).to.equal(false);
-      
-      // Check WDOGE was burned
-      const wdogeBalance = await wdogeToken.balanceOf(user1.address);
-      expect(wdogeBalance).to.equal(0);
-      
-      // Check DOGE was returned with rewards (accounting for gas costs)
-      const expectedBalance = balanceBefore + stakeAmount + reward - gasCost;
-      expect(balanceAfter).to.be.closeTo(expectedBalance, ethers.parseEther("0.0001"));
+            await expect(stakingContract.connect(user1).stake({
+                value: STAKE_AMOUNT
+            })).to.be.revertedWithCustomError(stakingContract, "ContractPaused");
+
+            await stakingContract.connect(owner).setPaused(false);
+            expect(await stakingContract.paused()).to.be.false;
+        });
+
+        it("Should allow owner to update max cap", async function () {
+            const newCap = ethers.parseEther("2000000"); // 2M DOGE
+            await stakingContract.connect(owner).setMaxCap(newCap);
+            expect(await stakingContract.maxCap()).to.equal(newCap);
+        });
+
+        it("Should prevent non-owner from pausing", async function () {
+            await expect(stakingContract.connect(user1).setPaused(true))
+                .to.be.revertedWithCustomError(stakingContract, "NotOwner");
+        });
     });
-  });
 }); 

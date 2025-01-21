@@ -1,7 +1,7 @@
 // Contract Addresses (lowercase for consistency, will be checksummed in the app)
 export const CONTRACT_ADDRESSES = {
-  STAKING_CONTRACT: "0x8b0fb6d18cd21381e5a327fba0d3f616e0368a91",
-  WDOGE_TOKEN: "0x200edc3efe52f03e79ace544a8d590e13f06afbf"
+  STAKING_CONTRACT: "0x134e4d590D977a84871b6e651A9AFe919a2ece29",
+  WDOGE_TOKEN: "0xED06BD809785C1c62069D5dF05743B2ac74AA791"
 };
 
 // Network Configuration

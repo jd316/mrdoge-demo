@@ -1,70 +1,67 @@
-const hre = require("hardhat");
+const { ethers } = require("hardhat");
 const fs = require("fs");
-const path = require("path");
 
 async function main() {
-  console.log("Starting deployment...");
+  console.log("Starting deployment to", network.name);
+  console.log("Deployer address:", (await ethers.getSigners())[0].address);
 
-  // Get the deployer's address
-  const [deployer] = await hre.ethers.getSigners();
-  console.log("Deploying contracts with the account:", deployer.address);
-
-  // Deploy WDOGEToken
+  // Deploy WDOGE Token
   console.log("\nDeploying WDOGEToken...");
-  const WDOGEToken = await hre.ethers.getContractFactory("WDOGEToken");
+  const WDOGEToken = await ethers.getContractFactory("WDOGEToken");
   const wdogeToken = await WDOGEToken.deploy();
   await wdogeToken.waitForDeployment();
   const wdogeTokenAddress = await wdogeToken.getAddress();
   console.log("WDOGEToken deployed to:", wdogeTokenAddress);
 
-  // Deploy StakingContract
+  // Deploy Staking Contract
   console.log("\nDeploying StakingContract...");
-  const StakingContract = await hre.ethers.getContractFactory("StakingContract");
+  const StakingContract = await ethers.getContractFactory("StakingContract");
   const stakingContract = await StakingContract.deploy(wdogeTokenAddress);
   await stakingContract.waitForDeployment();
   const stakingContractAddress = await stakingContract.getAddress();
   console.log("StakingContract deployed to:", stakingContractAddress);
 
-  // Grant MINTER_ROLE to StakingContract in WDOGEToken
+  // Grant MINTER_ROLE to staking contract
   console.log("\nGranting MINTER_ROLE to StakingContract...");
   const MINTER_ROLE = await wdogeToken.MINTER_ROLE();
   await wdogeToken.grantRole(MINTER_ROLE, stakingContractAddress);
-  console.log("MINTER_ROLE granted to StakingContract");
+  console.log("Granted MINTER_ROLE to StakingContract");
 
-  // Update frontend config
-  console.log("\nUpdating frontend configuration...");
-  const configPath = path.join(__dirname, "../frontend/src/config.js");
-  const configContent = `// Contract Addresses (lowercase for consistency, will be checksummed in the app)
-export const CONTRACT_ADDRESSES = {
-  STAKING_CONTRACT: "${stakingContractAddress.toLowerCase()}",
-  WDOGE_TOKEN: "${wdogeTokenAddress.toLowerCase()}"
-};
+  // Fund the staking contract with initial DOGE for rewards
+  console.log("\nFunding StakingContract with initial rewards...");
+  const [deployer] = await ethers.getSigners();
+  const fundTx = await deployer.sendTransaction({
+    to: stakingContractAddress,
+    value: ethers.parseEther("5") // Fund with 5 DOGE
+  });
+  await fundTx.wait();
+  console.log("Funded StakingContract with 5 DOGE");
 
-// Network Configuration
-export const REQUIRED_CHAIN_ID = 568; // Dogechain Testnet
+  // Save deployment addresses
+  const deployment = {
+    network: network.name,
+    wdogeToken: wdogeTokenAddress,
+    stakingContract: stakingContractAddress,
+    timestamp: new Date().toISOString()
+  };
 
-export const NETWORK_CONFIG = {
-  chainId: "0x238", // 568 in hex
-  chainName: "Dogechain Testnet",
-  nativeCurrency: {
-    name: "DOGE",
-    symbol: "DOGE",
-    decimals: 18,
-  },
-  rpcUrls: ["https://rpc-testnet.dogechain.dog"],
-  blockExplorerUrls: ["https://explorer-testnet.dogechain.dog"],
-};
-`;
+  fs.writeFileSync(
+    'deployment.json',
+    JSON.stringify(deployment, null, 2)
+  );
+  console.log("\nDeployment addresses saved to deployment.json");
 
-  fs.writeFileSync(configPath, configContent);
-  console.log("Frontend configuration updated");
+  // Verify deployment
+  console.log("\nDeployment completed!");
+  console.log("Initial contract state:");
+  console.log("- Current APY Rate:", await stakingContract.currentRate(), "%");
+  console.log("- Min Stake Amount:", ethers.formatEther(await stakingContract.minStakeAmount()), "DOGE");
+  console.log("- Max Cap:", ethers.formatEther(await stakingContract.maxCap()), "DOGE");
+  console.log("- Contract Balance:", ethers.formatEther(await ethers.provider.getBalance(stakingContractAddress)), "DOGE");
 
-  // Print deployment summary
-  console.log("\nDeployment Summary:");
-  console.log("-------------------");
-  console.log("WDOGEToken:", wdogeTokenAddress);
-  console.log("StakingContract:", stakingContractAddress);
-  console.log("\nContracts deployed successfully!");
+  console.log("\nVerify contracts on explorer:");
+  console.log(`npx hardhat verify --network ${network.name} ${wdogeTokenAddress}`);
+  console.log(`npx hardhat verify --network ${network.name} ${stakingContractAddress} ${wdogeTokenAddress}`);
 }
 
 main()

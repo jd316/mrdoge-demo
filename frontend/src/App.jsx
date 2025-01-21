@@ -13,7 +13,7 @@ import {
   extendTheme,
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
-import { REQUIRED_CHAIN_ID, NETWORK_CONFIG } from './config';
+import { REQUIRED_CHAIN_ID, NETWORK_CONFIG, CONTRACT_ADDRESSES } from './config';
 import StakingForm from './components/StakingForm';
 import WithdrawForm from './components/WithdrawForm';
 import NetworkGuide from './components/NetworkGuide';
@@ -21,6 +21,9 @@ import NetworkStatus from './components/NetworkStatus';
 import ErrorBoundary from './components/ErrorBoundary';
 import { handleTransaction } from './utils/transactionHelper';
 import { logger } from './utils/logger';
+import { useStaking } from './hooks/useStaking';
+import StakingContractArtifact from './contracts/StakingContract.json';
+import WDOGETokenArtifact from './contracts/WDOGEToken.json';
 
 // Create a custom theme with default toast position
 const theme = extendTheme({
@@ -36,7 +39,37 @@ const theme = extendTheme({
 function App() {
   const [address, setAddress] = useState('');
   const [signer, setSigner] = useState(null);
+  const [provider, setProvider] = useState(null);
   const toast = useToast();
+
+  // Initialize contracts
+  const stakingContract = signer ? new ethers.Contract(
+    CONTRACT_ADDRESSES.STAKING_CONTRACT,
+    StakingContractArtifact.abi,
+    signer
+  ) : null;
+
+  const tokenContract = signer ? new ethers.Contract(
+    CONTRACT_ADDRESSES.WDOGE_TOKEN,
+    WDOGETokenArtifact.abi,
+    signer
+  ) : null;
+
+  // Use the staking hook
+  const {
+    balance,
+    stakedAmount,
+    rewards,
+    isStaking,
+    timeLeft,
+    rewardRate,
+    minStakeAmount,
+    lockupPeriod,
+    updateBalances,
+    isInitialized,
+    totalValueLocked,
+    maxCap,
+  } = useStaking(provider, signer, address, stakingContract, tokenContract);
 
   const addToMetamask = async () => {
     try {
@@ -52,7 +85,7 @@ function App() {
 
       toast({
         title: 'Success',
-        description: 'Polygon Amoy Testnet added to MetaMask',
+        description: 'Dogechain Testnet added to MetaMask',
         status: 'success',
         duration: 5000,
         isClosable: true,
@@ -75,24 +108,66 @@ function App() {
         throw new Error('Please install MetaMask to use this app');
       }
 
+      // First step: Connect wallet
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
       });
       const account = accounts[0];
 
+      // Set initial provider and signer
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      setSigner(signer);
+      setAddress(account);
+
+      // Second step: Check and switch network
       const chainId = await window.ethereum.request({ method: 'eth_chainId' });
       if (parseInt(chainId, 16) !== REQUIRED_CHAIN_ID) {
+        toast({
+          title: 'Wrong Network',
+          description: 'Please switch to Dogechain Testnet',
+          status: 'warning',
+          duration: null,
+          isClosable: true,
+        });
+
         try {
+          // This will show the MetaMask network switch prompt
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: NETWORK_CONFIG.chainId }],
           });
+          
+          toast({
+            title: 'Success',
+            description: 'Successfully connected to Dogechain Testnet',
+            status: 'success',
+            duration: 5000,
+            isClosable: true,
+          });
         } catch (switchError) {
+          // This error code indicates that the chain has not been added to MetaMask
           if (switchError.code === 4902) {
             try {
+              toast({
+                title: 'Adding Network',
+                description: 'Please approve adding Dogechain Testnet to MetaMask',
+                status: 'info',
+                duration: null,
+                isClosable: true,
+              });
+
               await window.ethereum.request({
                 method: 'wallet_addEthereumChain',
                 params: [NETWORK_CONFIG],
+              });
+
+              toast({
+                title: 'Success',
+                description: 'Dogechain Testnet added to MetaMask',
+                status: 'success',
+                duration: 5000,
+                isClosable: true,
               });
             } catch (addError) {
               toast({
@@ -102,6 +177,8 @@ function App() {
                 duration: 5000,
                 isClosable: true,
               });
+              setAddress('');
+              setSigner(null);
               return;
             }
           } else {
@@ -112,18 +189,19 @@ function App() {
               duration: 5000,
               isClosable: true,
             });
+            setAddress('');
+            setSigner(null);
             return;
           }
         }
       }
 
-      const provider = new ethers.providers.Web3Provider(window.ethereum);
-      const signer = provider.getSigner();
-      setSigner(signer);
-      setAddress(account);
-
+      // Set up event listeners
       window.ethereum.on('accountsChanged', (accounts) => {
-        setAddress(accounts[0]);
+        setAddress(accounts[0] || '');
+        if (!accounts[0]) {
+          setSigner(null);
+        }
       });
 
       window.ethereum.on('chainChanged', (_chainId) => {
@@ -134,11 +212,13 @@ function App() {
       console.error('Error connecting wallet:', error);
       toast({
         title: 'Error',
-        description: 'Failed to connect wallet',
+        description: error.message || 'Failed to connect wallet',
         status: 'error',
         duration: 5000,
         isClosable: true,
       });
+      setAddress('');
+      setSigner(null);
     }
   };
 
@@ -218,7 +298,16 @@ function App() {
                     border="1px"
                     borderColor="#2A2F34"
                   >
-                    <StakingForm signer={signer} address={address} handleTransaction={handleTransaction} />
+                    <StakingForm 
+                      signer={signer} 
+                      address={address} 
+                      handleTransaction={handleTransaction}
+                      apy={rewardRate}
+                      minStakeAmount={minStakeAmount}
+                      totalValueLocked={totalValueLocked}
+                      maxCap={maxCap}
+                      onStakeSuccess={updateBalances}
+                    />
                   </Box>
                   <Box 
                     flex="1"
@@ -228,7 +317,13 @@ function App() {
                     border="1px"
                     borderColor="#2A2F34"
                   >
-                    <WithdrawForm signer={signer} address={address} handleTransaction={handleTransaction} />
+                    <WithdrawForm 
+                      signer={signer} 
+                      address={address} 
+                      handleTransaction={handleTransaction}
+                      apy={rewardRate}
+                      lockupPeriod={lockupPeriod}
+                    />
                   </Box>
                 </Flex>
               </VStack>

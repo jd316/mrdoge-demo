@@ -7,14 +7,71 @@ export function useStaking(provider, signer, address, stakingContract, tokenCont
   const [rewards, setRewards] = useState('0');
   const [isStaking, setIsStaking] = useState(false);
   const [timeLeft, setTimeLeft] = useState(0);
-  const [rewardRate, setRewardRate] = useState(25); // 25% APY
+  const [rewardRate, setRewardRate] = useState(15); // Start with max APY
   const [isInitialized, setIsInitialized] = useState(false);
+  const [minStakeAmount, setMinStakeAmount] = useState('5'); // Default 5 DOGE
+  const [lockupPeriod, setLockupPeriod] = useState(7 * 24 * 60 * 60); // Default 7 days
+  const [totalValueLocked, setTotalValueLocked] = useState('0');
+  const [maxCap, setMaxCap] = useState('1000000');
 
   useEffect(() => {
     if (provider && signer && address && stakingContract && tokenContract) {
       setIsInitialized(true);
     }
   }, [provider, signer, address, stakingContract, tokenContract]);
+
+  useEffect(() => {
+    const fetchRewardRate = async () => {
+      if (stakingContract) {
+        try {
+          const rate = await stakingContract.currentRate();
+          setRewardRate(rate.toNumber());
+        } catch (error) {
+          console.error("Error fetching reward rate:", error);
+        }
+      }
+    };
+
+    fetchRewardRate();
+    // Set up interval to refresh rate
+    const interval = setInterval(fetchRewardRate, 30000); // Update every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [stakingContract]);
+
+  useEffect(() => {
+    const fetchContractParams = async () => {
+      if (stakingContract) {
+        try {
+          const [minStake, lockPeriod, tvl, cap] = await Promise.all([
+            stakingContract.minStakeAmount(),
+            stakingContract.lockupPeriod(),
+            stakingContract.totalValueLocked(),
+            stakingContract.maxCap()
+          ]);
+          
+          // Format values properly
+          setMinStakeAmount(ethers.utils.formatEther(minStake));
+          setLockupPeriod(lockPeriod.toNumber());
+          setTotalValueLocked(ethers.utils.formatEther(tvl));
+          setMaxCap(ethers.utils.formatEther(cap));
+
+          console.log('Contract parameters:', {
+            minStake: ethers.utils.formatEther(minStake),
+            lockPeriod: lockPeriod.toNumber(),
+            tvl: ethers.utils.formatEther(tvl),
+            cap: ethers.utils.formatEther(cap)
+          });
+        } catch (error) {
+          console.error("Error fetching contract parameters:", error);
+        }
+      }
+    };
+
+    fetchContractParams();
+    const interval = setInterval(fetchContractParams, 30000); // Update every 30 seconds
+    return () => clearInterval(interval);
+  }, [stakingContract]);
 
   // Update rewards separately
   const updateRewards = async () => {
@@ -118,6 +175,10 @@ export function useStaking(provider, signer, address, stakingContract, tokenCont
     isStaking,
     timeLeft,
     rewardRate,
+    minStakeAmount,
+    lockupPeriod,
+    totalValueLocked,
+    maxCap,
     stakingContract,
     tokenContract,
     updateBalances,

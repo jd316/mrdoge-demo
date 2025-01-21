@@ -9,13 +9,12 @@
   "author": "",
   "license": "ISC",
   "description": "",
-  "dependencies": {
-    "@openzeppelin/contracts": "^5.2.0"
-  },
+  "dependencies": {},
   "devDependencies": {
-    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^4.9.3",
     "dotenv": "^16.4.7",
     "ethers": "^6.13.4",
-    "hardhat": "^2.22.18"
+    "hardhat": "^2.19.4"
   }
 }

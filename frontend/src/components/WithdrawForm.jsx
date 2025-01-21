@@ -14,7 +14,7 @@ import { ethers } from 'ethers';
 import { CONTRACT_ADDRESSES } from '../config';
 import StakingContractArtifact from '../contracts/StakingContract.json';
 
-const WithdrawForm = ({ signer, address, handleTransaction }) => {
+const WithdrawForm = ({ signer, address, handleTransaction, lockupPeriod, apy }) => {
   const [loading, setLoading] = useState(false);
   const [stakedAmount, setStakedAmount] = useState('0');
   const [rewards, setRewards] = useState('0');
@@ -26,7 +26,6 @@ const WithdrawForm = ({ signer, address, handleTransaction }) => {
 
   const calculateTimeRemaining = (startTime) => {
     const now = Math.floor(Date.now() / 1000);
-    const lockupPeriod = 7 * 24 * 60 * 60; // 7 days in seconds
     const endTime = Number(startTime) + lockupPeriod;
     const remainingSeconds = Math.max(0, endTime - now);
 
@@ -63,7 +62,6 @@ const WithdrawForm = ({ signer, address, handleTransaction }) => {
         // Calculate lock progress
         if (stakeData.active) {
           const now = Math.floor(Date.now() / 1000);
-          const lockupPeriod = 7 * 24 * 60 * 60; // 7 days in seconds
           const progress = Math.min(100, Math.max(0, ((now - Number(stakeData.startTime)) / lockupPeriod) * 100));
           setLockProgress(progress);
           setTimeRemaining(calculateTimeRemaining(stakeData.startTime));
@@ -79,7 +77,7 @@ const WithdrawForm = ({ signer, address, handleTransaction }) => {
     fetchStakingInfo();
     const interval = setInterval(fetchStakingInfo, 10000); // Update staking info every 10 seconds
     return () => clearInterval(interval);
-  }, [signer, address]);
+  }, [signer, address, lockupPeriod]);
 
   // Real-time countdown timer
   useEffect(() => {
@@ -91,13 +89,12 @@ const WithdrawForm = ({ signer, address, handleTransaction }) => {
       
       // Update progress bar
       const now = Math.floor(Date.now() / 1000);
-      const lockupPeriod = 7 * 24 * 60 * 60;
       const progress = Math.min(100, Math.max(0, ((now - stakeStartTime) / lockupPeriod) * 100));
       setLockProgress(progress);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [stakeStartTime]);
+  }, [stakeStartTime, lockupPeriod]);
 
   const handleWithdraw = async () => {
     if (!signer) return;
@@ -287,7 +284,7 @@ const WithdrawForm = ({ signer, address, handleTransaction }) => {
               APY Rate
             </Text>
             <Text fontSize="xl" fontWeight="bold" color="#FF6B00">
-              25%
+              {apy}%
             </Text>
           </Box>
 

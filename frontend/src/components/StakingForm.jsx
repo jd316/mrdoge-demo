@@ -11,6 +11,7 @@ import {
   HStack,
   Link,
   Icon,
+  Progress,
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
@@ -19,7 +20,7 @@ import { CONTRACT_ADDRESSES, REQUIRED_CHAIN_ID } from '../config';
 import StakingContractArtifact from '../contracts/StakingContract.json';
 import { logger } from '../utils/logger';
 
-const StakingForm = ({ signer, address, onStakeSuccess }) => {
+const StakingForm = ({ signer, address, onStakeSuccess, apy, minStakeAmount, totalValueLocked, maxCap }) => {
   const [loading, setLoading] = useState(false);
   const [balance, setBalance] = useState('0');
   const [amount, setAmount] = useState('');
@@ -48,7 +49,7 @@ const StakingForm = ({ signer, address, onStakeSuccess }) => {
 
   useEffect(() => {
     const calculateRewards = () => {
-      if (!amount) {
+      if (!amount || isNaN(parseFloat(amount))) {
         setDailyReward('0');
         setAnnualReward('0');
         return;
@@ -56,18 +57,26 @@ const StakingForm = ({ signer, address, onStakeSuccess }) => {
 
       try {
         const amountNum = parseFloat(amount);
-        const annualRewardAmount = (amountNum * 0.25); // 25% APY
+        if (amountNum <= 0) {
+          setDailyReward('0');
+          setAnnualReward('0');
+          return;
+        }
+
+        const annualRewardAmount = (amountNum * (apy / 100)); // Dynamic APY
         const dailyRewardAmount = annualRewardAmount / 365;
 
-        setAnnualReward(annualRewardAmount.toFixed(2));
+        setAnnualReward(annualRewardAmount.toFixed(4));
         setDailyReward(dailyRewardAmount.toFixed(4));
       } catch (error) {
         logger.error('Error calculating rewards:', error);
+        setDailyReward('0');
+        setAnnualReward('0');
       }
     };
 
     calculateRewards();
-  }, [amount]);
+  }, [amount, apy]);
 
   const handleStake = async () => {
     if (!signer || !address || !amount) return;
@@ -284,6 +293,21 @@ const StakingForm = ({ signer, address, onStakeSuccess }) => {
         <CardBody>
           <VStack spacing={4} align="stretch">
             <Box>
+              <Text mb={2} color="gray.400">Total Value Locked</Text>
+              <Text fontSize="xl" fontWeight="bold" color="white">
+                {parseFloat(totalValueLocked).toFixed(2)} / {parseFloat(maxCap).toLocaleString()} DOGE
+              </Text>
+              <Progress 
+                value={(parseFloat(totalValueLocked) / parseFloat(maxCap)) * 100} 
+                size="sm" 
+                colorScheme="orange" 
+                bg="#22262B"
+                borderRadius="full"
+                mt={2}
+              />
+            </Box>
+
+            <Box>
               <Text mb={2} color="gray.400">Your DOGE Balance</Text>
               <Text fontSize="xl" fontWeight="bold" color="white">
                 {parseFloat(balance).toFixed(4)} DOGE
@@ -291,13 +315,13 @@ const StakingForm = ({ signer, address, onStakeSuccess }) => {
             </Box>
 
             <Box>
-              <Text mb={2} color="gray.400">Amount to Stake</Text>
+              <Text mb={2} color="gray.400">Amount to Stake (min. {minStakeAmount} DOGE)</Text>
               <Input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder="Enter amount"
+                placeholder={`Enter amount (min. ${minStakeAmount} DOGE)`}
                 type="number"
-                min="0"
+                min={minStakeAmount}
                 step="0.1"
                 bg="whiteAlpha.100"
                 border="1px"
@@ -318,7 +342,7 @@ const StakingForm = ({ signer, address, onStakeSuccess }) => {
                   </Text>
                 </Box>
                 <Box>
-                  <Text color="gray.400" fontSize="sm">Annual (25% APY)</Text>
+                  <Text color="gray.400" fontSize="sm">Annual ({apy}% APY)</Text>
                   <Text color="#FF6B00" fontSize="lg" fontWeight="bold">
                     {annualReward} DOGE
                   </Text>
@@ -334,10 +358,16 @@ const StakingForm = ({ signer, address, onStakeSuccess }) => {
               color="white"
               _hover={{ bg: "#E66000" }}
               _active={{ bg: "#CC5500" }}
-              isDisabled={!amount || parseFloat(amount) <= 0 || hasActiveStake}
+              isDisabled={!amount || parseFloat(amount) < parseFloat(minStakeAmount) || hasActiveStake}
             >
               Stake DOGE
             </Button>
+
+            {amount && parseFloat(amount) < parseFloat(minStakeAmount) && (
+              <Text color="#FF6B00" fontSize="sm">
+                Minimum stake amount is {minStakeAmount} DOGE
+              </Text>
+            )}
 
             {hasActiveStake && (
               <Text color="#FF6B00" fontSize="sm">

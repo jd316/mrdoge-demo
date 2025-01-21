@@ -148,7 +148,7 @@ const NetworkGuide = () => {
           <Text color="gray.300" fontSize="sm">
             💡 <Text as="span" color="#FF6B00" fontWeight="bold">Pro Tip:</Text>{' '}
             You'll need a small amount of DOGE (around 2-3) to cover transaction fees. 
-            Stake any amount of DOGE to start earning a 25% APY!
+            Stake any amount of DOGE to start earning up to 15% APY!
           </Text>
         </Box>
       </VStack>
